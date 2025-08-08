@@ -286,6 +286,12 @@ jobs:
       with:
         version: 'latest'
 
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: arn:aws:iam::436549840164:role/github_action_role
+        aws-region: eu-west-2
+
     - name: Configure kubectl
       run: |
         echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > kubeconfig
@@ -356,6 +362,12 @@ jobs:
       uses: azure/setup-kubectl@v3
       with:
         version: 'latest'
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: arn:aws:iam::436549840164:role/github_action_role
+        aws-region: eu-west-2
 
     - name: Configure kubectl
       run: |
