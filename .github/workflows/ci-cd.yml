@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+permissions:
+  id-token: write
+  contents: read
+  security-events: write
+
 env:
   AWS_REGION: eu-west-2
   ECR_REGISTRY: 436549840164.dkr.ecr.eu-west-2.amazonaws.com
@@ -45,7 +50,7 @@ jobs:
 
     strategy:
       matrix:
-        service: [user-service, course-service, enrollment-service, assessment-service, progress-service, analytics-service, communication-service, content-service, api-gateway]
+        service: [user_service, course_service, enrollment_service, assessment_service, progress_service, analytics_service, communication_service, content_service, api_gateway]
 
     steps:
     - name: Checkout code
