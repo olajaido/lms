@@ -1,0 +1,268 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: lms-postgres
+    environment:
+      POSTGRES_DB: lms_db
+      POSTGRES_USER: lms_user
+      POSTGRES_PASSWORD: lms_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - lms-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lms_user -d lms_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis for caching and sessions
+  redis:
+    image: redis:7-alpine
+    container_name: lms-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - lms-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./backend/api_gateway
+      dockerfile: Dockerfile
+    container_name: lms-api-gateway
+    environment:
+      - JWT_SECRET_KEY=your-super-secret-jwt-key-change-in-production
+      - JWT_ALGORITHM=HS256
+      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
+    ports:
+      - "8000:8000"
+    depends_on:
+      - user-service
+      - course-service
+      - enrollment-service
+      - assessment-service
+      - progress-service
+      - analytics-service
+      - communication-service
+      - content-service
+    networks:
+      - lms-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # User Service
+  user-service:
+    build:
+      context: ./backend/user_service
+      dockerfile: Dockerfile
+    container_name: lms-user-service
+    environment:
+      - DATABASE_URL=postgresql://lms_user:lms_password@postgres:5432/lms_db
+      - JWT_SECRET_KEY=your-super-secret-jwt-key-change-in-production
+      - JWT_ALGORITHM=HS256
+      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - lms-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Course Service
+  course-service:
+    build:
+      context: ./backend/course_service
+      dockerfile: Dockerfile
+    container_name: lms-course-service
+    environment:
+      - DATABASE_URL=sqlite:///./course.db
+    ports:
+      - "8002:8002"
+    volumes:
+      - course_data:/app
+    networks:
+      - lms-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Enrollment Service
+  enrollment-service:
+    build:
+      context: ./backend/enrollment_service
+      dockerfile: Dockerfile
+    container_name: lms-enrollment-service
+    environment:
+      - DATABASE_URL=postgresql://lms_user:lms_password@postgres:5432/lms_db
+    ports:
+      - "8003:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - lms-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Assessment Service
+  assessment-service:
+    build:
+      context: ./backend/assessment_service
+      dockerfile: Dockerfile
+    container_name: lms-assessment-service
+    environment:
+      - DATABASE_URL=postgresql://lms_user:lms_password@postgres:5432/lms_db
+    ports:
+      - "8004:8004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - lms-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Progress Service
+  progress-service:
+    build:
+      context: ./backend/progress_service
+      dockerfile: Dockerfile
+    container_name: lms-progress-service
+    environment:
+      - DATABASE_URL=postgresql://lms_user:lms_password@postgres:5432/lms_db
+    ports:
+      - "8005:8005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - lms-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Analytics Service
+  analytics-service:
+    build:
+      context: ./backend/analytics_service
+      dockerfile: Dockerfile
+    container_name: lms-analytics-service
+    environment:
+      - DATABASE_URL=postgresql://lms_user:lms_password@postgres:5432/lms_db
+    ports:
+      - "8006:8006"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - lms-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Communication Service
+  communication-service:
+    build:
+      context: ./backend/communication_service
+      dockerfile: Dockerfile
+    container_name: lms-communication-service
+    environment:
+      - DATABASE_URL=postgresql://lms_user:lms_password@postgres:5432/lms_db
+    ports:
+      - "8007:8007"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - lms-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8007/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Content Service
+  content-service:
+    build:
+      context: ./backend/content_service
+      dockerfile: Dockerfile
+    container_name: lms-content-service
+    environment:
+      - DATABASE_URL=sqlite:///./content.db
+      - UPLOAD_DIR=/app/uploads
+    ports:
+      - "8008:8007"
+    volumes:
+      - content_uploads:/app/uploads
+      - content_data:/app
+    networks:
+      - lms-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8007/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: lms-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - api-gateway
+    networks:
+      - lms-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:
+  redis_data:
+  course_data:
+  content_data:
+  content_uploads:
+
+networks:
+  lms-network:
+    driver: bridge 

@@ -1,0 +1,390 @@
+name: LMS Platform CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ============================================================================
+  # TESTING JOB
+  # ============================================================================
+  test:
+    name: Test Backend Services
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    strategy:
+      matrix:
+        service: [user-service, course-service, enrollment-service, assessment-service, progress-service, analytics-service, communication-service, content-service, api-gateway]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        cd backend/${{ matrix.service }}
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-asyncio httpx
+
+    - name: Run tests
+      run: |
+        cd backend/${{ matrix.service }}
+        python -m pytest tests/ -v --cov=app --cov-report=xml
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./backend/${{ matrix.service }}/coverage.xml
+        flags: ${{ matrix.service }}
+        name: ${{ matrix.service }}-coverage
+
+  # ============================================================================
+  # FRONTEND TESTING
+  # ============================================================================
+  test-frontend:
+    name: Test Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install dependencies
+      run: |
+        cd frontend
+        npm ci
+
+    - name: Run tests
+      run: |
+        cd frontend
+        npm test -- --coverage --watchAll=false
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./frontend/coverage/lcov.info
+        flags: frontend
+        name: frontend-coverage
+
+  # ============================================================================
+  # SECURITY SCANNING
+  # ============================================================================
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  # ============================================================================
+  # BUILD IMAGES
+  # ============================================================================
+  build:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [test, test-frontend, security]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: |
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/api-gateway
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/user-service
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/course-service
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/enrollment-service
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/assessment-service
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/progress-service
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/analytics-service
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/communication-service
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/content-service
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend
+
+    - name: Build and push API Gateway
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend/api_gateway
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/api-gateway:${{ github.sha }}
+        labels: ${{ steps.meta.outputs.labels }}
+
+    - name: Build and push User Service
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend/user_service
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/user-service:${{ github.sha }}
+        labels: ${{ steps.meta.outputs.labels }}
+
+    - name: Build and push Course Service
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend/course_service
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/course-service:${{ github.sha }}
+        labels: ${{ steps.meta.outputs.labels }}
+
+    - name: Build and push Enrollment Service
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend/enrollment_service
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/enrollment-service:${{ github.sha }}
+        labels: ${{ steps.meta.outputs.labels }}
+
+    - name: Build and push Assessment Service
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend/assessment_service
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/assessment-service:${{ github.sha }}
+        labels: ${{ steps.meta.outputs.labels }}
+
+    - name: Build and push Progress Service
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend/progress_service
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/progress-service:${{ github.sha }}
+        labels: ${{ steps.meta.outputs.labels }}
+
+    - name: Build and push Analytics Service
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend/analytics_service
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/analytics-service:${{ github.sha }}
+        labels: ${{ steps.meta.outputs.labels }}
+
+    - name: Build and push Communication Service
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend/communication_service
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/communication-service:${{ github.sha }}
+        labels: ${{ steps.meta.outputs.labels }}
+
+    - name: Build and push Content Service
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend/content_service
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/content-service:${{ github.sha }}
+        labels: ${{ steps.meta.outputs.labels }}
+
+    - name: Build and push Frontend
+      uses: docker/build-push-action@v5
+      with:
+        context: ./frontend
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend:${{ github.sha }}
+        labels: ${{ steps.meta.outputs.labels }}
+
+  # ============================================================================
+  # DEPLOY TO STAGING
+  # ============================================================================
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/develop'
+    environment: staging
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > kubeconfig
+        export KUBECONFIG=kubeconfig
+
+    - name: Deploy to staging
+      run: |
+        # Update image tags in Kubernetes manifests
+        sed -i 's|ghcr.io/.*/api-gateway:.*|ghcr.io/${{ github.repository }}/api-gateway:${{ github.sha }}|g' k8s/staging/
+        sed -i 's|ghcr.io/.*/user-service:.*|ghcr.io/${{ github.repository }}/user-service:${{ github.sha }}|g' k8s/staging/
+        sed -i 's|ghcr.io/.*/course-service:.*|ghcr.io/${{ github.repository }}/course-service:${{ github.sha }}|g' k8s/staging/
+        sed -i 's|ghcr.io/.*/enrollment-service:.*|ghcr.io/${{ github.repository }}/enrollment-service:${{ github.sha }}|g' k8s/staging/
+        sed -i 's|ghcr.io/.*/assessment-service:.*|ghcr.io/${{ github.repository }}/assessment-service:${{ github.sha }}|g' k8s/staging/
+        sed -i 's|ghcr.io/.*/progress-service:.*|ghcr.io/${{ github.repository }}/progress-service:${{ github.sha }}|g' k8s/staging/
+        sed -i 's|ghcr.io/.*/analytics-service:.*|ghcr.io/${{ github.repository }}/analytics-service:${{ github.sha }}|g' k8s/staging/
+        sed -i 's|ghcr.io/.*/communication-service:.*|ghcr.io/${{ github.repository }}/communication-service:${{ github.sha }}|g' k8s/staging/
+        sed -i 's|ghcr.io/.*/content-service:.*|ghcr.io/${{ github.repository }}/content-service:${{ github.sha }}|g' k8s/staging/
+        sed -i 's|ghcr.io/.*/frontend:.*|ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}|g' k8s/staging/
+        
+        # Apply Kubernetes manifests
+        kubectl apply -f k8s/staging/
+        
+        # Wait for deployment to be ready
+        kubectl rollout status deployment/api-gateway -n lms-staging --timeout=300s
+        kubectl rollout status deployment/user-service -n lms-staging --timeout=300s
+        kubectl rollout status deployment/course-service -n lms-staging --timeout=300s
+        kubectl rollout status deployment/enrollment-service -n lms-staging --timeout=300s
+        kubectl rollout status deployment/assessment-service -n lms-staging --timeout=300s
+        kubectl rollout status deployment/progress-service -n lms-staging --timeout=300s
+        kubectl rollout status deployment/analytics-service -n lms-staging --timeout=300s
+        kubectl rollout status deployment/communication-service -n lms-staging --timeout=300s
+        kubectl rollout status deployment/content-service -n lms-staging --timeout=300s
+        kubectl rollout status deployment/frontend -n lms-staging --timeout=300s
+
+    - name: Run smoke tests
+      run: |
+        # Wait for services to be ready
+        sleep 60
+        
+        # Test API Gateway
+        curl -f http://staging-api.lms.com/health || exit 1
+        
+        # Test frontend
+        curl -f http://staging.lms.com/ || exit 1
+
+  # ============================================================================
+  # DEPLOY TO PRODUCTION
+  # ============================================================================
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    environment: production
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" | base64 -d > kubeconfig
+        export KUBECONFIG=kubeconfig
+
+    - name: Deploy to production
+      run: |
+        # Update image tags in Kubernetes manifests
+        sed -i 's|ghcr.io/.*/api-gateway:.*|ghcr.io/${{ github.repository }}/api-gateway:${{ github.sha }}|g' k8s/production/
+        sed -i 's|ghcr.io/.*/user-service:.*|ghcr.io/${{ github.repository }}/user-service:${{ github.sha }}|g' k8s/production/
+        sed -i 's|ghcr.io/.*/course-service:.*|ghcr.io/${{ github.repository }}/course-service:${{ github.sha }}|g' k8s/production/
+        sed -i 's|ghcr.io/.*/enrollment-service:.*|ghcr.io/${{ github.repository }}/enrollment-service:${{ github.sha }}|g' k8s/production/
+        sed -i 's|ghcr.io/.*/assessment-service:.*|ghcr.io/${{ github.repository }}/assessment-service:${{ github.sha }}|g' k8s/production/
+        sed -i 's|ghcr.io/.*/progress-service:.*|ghcr.io/${{ github.repository }}/progress-service:${{ github.sha }}|g' k8s/production/
+        sed -i 's|ghcr.io/.*/analytics-service:.*|ghcr.io/${{ github.repository }}/analytics-service:${{ github.sha }}|g' k8s/production/
+        sed -i 's|ghcr.io/.*/communication-service:.*|ghcr.io/${{ github.repository }}/communication-service:${{ github.sha }}|g' k8s/production/
+        sed -i 's|ghcr.io/.*/content-service:.*|ghcr.io/${{ github.repository }}/content-service:${{ github.sha }}|g' k8s/production/
+        sed -i 's|ghcr.io/.*/frontend:.*|ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}|g' k8s/production/
+        
+        # Apply Kubernetes manifests
+        kubectl apply -f k8s/production/
+        
+        # Wait for deployment to be ready
+        kubectl rollout status deployment/api-gateway -n lms-production --timeout=300s
+        kubectl rollout status deployment/user-service -n lms-production --timeout=300s
+        kubectl rollout status deployment/course-service -n lms-production --timeout=300s
+        kubectl rollout status deployment/enrollment-service -n lms-production --timeout=300s
+        kubectl rollout status deployment/assessment-service -n lms-production --timeout=300s
+        kubectl rollout status deployment/progress-service -n lms-production --timeout=300s
+        kubectl rollout status deployment/analytics-service -n lms-production --timeout=300s
+        kubectl rollout status deployment/communication-service -n lms-production --timeout=300s
+        kubectl rollout status deployment/content-service -n lms-production --timeout=300s
+        kubectl rollout status deployment/frontend -n lms-production --timeout=300s
+
+    - name: Run smoke tests
+      run: |
+        # Wait for services to be ready
+        sleep 60
+        
+        # Test API Gateway
+        curl -f https://api.lms.com/health || exit 1
+        
+        # Test frontend
+        curl -f https://lms.com/ || exit 1
+
+    - name: Notify deployment
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#deployments'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+      if: always() 

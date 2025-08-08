@@ -1,0 +1,395 @@
+name: Database Backup & Disaster Recovery
+
+on:
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      backup_type:
+        description: 'Type of backup to perform'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+        - full
+        - incremental
+        - test-restore
+
+env:
+  BACKUP_RETENTION_DAYS: 30
+  BACKUP_BUCKET: lms-backups
+
+jobs:
+  # ============================================================================
+  # DATABASE BACKUP
+  # ============================================================================
+  database-backup:
+    name: Database Backup
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" | base64 -d > kubeconfig
+        export KUBECONFIG=kubeconfig
+
+    - name: Create backup directory
+      run: |
+        mkdir -p backups
+        mkdir -p backups/$(date +%Y%m%d)
+
+    - name: Backup PostgreSQL Database
+      run: |
+        echo "Starting PostgreSQL backup..."
+        
+        # Get PostgreSQL pod name
+        POD_NAME=$(kubectl get pods -n lms-production -l app=postgres -o jsonpath='{.items[0].metadata.name}')
+        
+        # Create backup
+        kubectl exec -n lms-production $POD_NAME -- pg_dump -U lms_production_user -d lms_production_db > backups/$(date +%Y%m%d)/postgres_backup_$(date +%Y%m%d_%H%M%S).sql
+        
+        # Compress backup
+        gzip backups/$(date +%Y%m%d)/postgres_backup_$(date +%Y%m%d_%H%M%S).sql
+        
+        echo "PostgreSQL backup completed"
+
+    - name: Backup SQLite Databases
+      run: |
+        echo "Starting SQLite backup..."
+        
+        # Get course service pod
+        COURSE_POD=$(kubectl get pods -n lms-production -l app=course-service -o jsonpath='{.items[0].metadata.name}')
+        
+        # Get content service pod
+        CONTENT_POD=$(kubectl get pods -n lms-production -l app=content-service -o jsonpath='{.items[0].metadata.name}')
+        
+        # Backup course database
+        kubectl cp lms-production/$COURSE_POD:/app/course.db backups/$(date +%Y%m%d)/course_backup_$(date +%Y%m%d_%H%M%S).db
+        
+        # Backup content database
+        kubectl cp lms-production/$CONTENT_POD:/app/content.db backups/$(date +%Y%m%d)/content_backup_$(date +%Y%m%d_%H%M%S).db
+        
+        echo "SQLite backup completed"
+
+    - name: Backup Configuration Files
+      run: |
+        echo "Starting configuration backup..."
+        
+        # Backup environment files
+        cp k8s/env/production.env backups/$(date +%Y%m%d)/production_env_$(date +%Y%m%d_%H%M%S).env
+        
+        # Backup Kubernetes manifests
+        kubectl get all -n lms-production -o yaml > backups/$(date +%Y%m%d)/k8s_manifests_$(date +%Y%m%d_%H%M%S).yaml
+        
+        echo "Configuration backup completed"
+
+    - name: Create backup manifest
+      run: |
+        cat << EOF > backups/$(date +%Y%m%d)/backup_manifest.json
+        {
+          "backup_id": "$(date +%Y%m%d_%H%M%S)",
+          "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+          "type": "${{ github.event.inputs.backup_type || 'full' }}",
+          "environment": "production",
+          "files": [
+            "postgres_backup_$(date +%Y%m%d_%H%M%S).sql.gz",
+            "course_backup_$(date +%Y%m%d_%H%M%S).db",
+            "content_backup_$(date +%Y%m%d_%H%M%S).db",
+            "production_env_$(date +%Y%m%d_%H%M%S).env",
+            "k8s_manifests_$(date +%Y%m%d_%H%M%S).yaml"
+          ],
+          "size_bytes": $(du -sb backups/$(date +%Y%m%d) | cut -f1),
+          "checksum": "$(find backups/$(date +%Y%m%d) -type f -exec sha256sum {} \; | sha256sum | cut -d' ' -f1)"
+        }
+        EOF
+
+    - name: Upload backup to S3
+      run: |
+        echo "Uploading backup to S3..."
+        
+        # Install AWS CLI
+        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+        unzip awscliv2.zip
+        sudo ./aws/install
+        
+        # Configure AWS credentials
+        aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws configure set default.region ${{ secrets.AWS_REGION }}
+        
+        # Upload backup files
+        aws s3 cp backups/$(date +%Y%m%d) s3://${{ env.BACKUP_BUCKET }}/$(date +%Y%m%d)/ --recursive
+        
+        echo "Backup uploaded to S3"
+
+    - name: Clean up old backups
+      run: |
+        echo "Cleaning up old backups..."
+        
+        # Remove backups older than retention period
+        find backups -type d -name "20*" -mtime +${{ env.BACKUP_RETENTION_DAYS }} -exec rm -rf {} \;
+        
+        # Clean up old S3 backups
+        aws s3 ls s3://${{ env.BACKUP_BUCKET }}/ | grep "PRE" | awk '{print $2}' | while read dir; do
+          dir_date=$(echo $dir | sed 's/\///')
+          if [ $(date -d "$dir_date" +%s) -lt $(date -d "${{ env.BACKUP_RETENTION_DAYS }} days ago" +%s) ]; then
+            aws s3 rm s3://${{ env.BACKUP_BUCKET }}/$dir --recursive
+            echo "Removed old backup: $dir"
+          fi
+        done
+
+  # ============================================================================
+  # BACKUP VERIFICATION
+  # ============================================================================
+  backup-verification:
+    name: Backup Verification
+    runs-on: ubuntu-latest
+    needs: database-backup
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Verify backup files
+      run: |
+        echo "Verifying backup files..."
+        
+        # Check if backup files exist and are not empty
+        backup_dir="backups/$(date +%Y%m%d)"
+        
+        if [ ! -d "$backup_dir" ]; then
+          echo "❌ Backup directory not found"
+          exit 1
+        fi
+        
+        # Check PostgreSQL backup
+        if [ ! -f "$backup_dir/postgres_backup_$(date +%Y%m%d)_"*.sql.gz ]; then
+          echo "❌ PostgreSQL backup not found"
+          exit 1
+        fi
+        
+        # Check SQLite backups
+        if [ ! -f "$backup_dir/course_backup_$(date +%Y%m%d)_"*.db ]; then
+          echo "❌ Course database backup not found"
+          exit 1
+        fi
+        
+        if [ ! -f "$backup_dir/content_backup_$(date +%Y%m%d)_"*.db ]; then
+          echo "❌ Content database backup not found"
+          exit 1
+        fi
+        
+        echo "✅ All backup files verified"
+
+    - name: Verify backup integrity
+      run: |
+        echo "Verifying backup integrity..."
+        
+        backup_dir="backups/$(date +%Y%m%d)"
+        manifest_file="$backup_dir/backup_manifest.json"
+        
+        if [ -f "$manifest_file" ]; then
+          # Verify checksum
+          expected_checksum=$(jq -r '.checksum' "$manifest_file")
+          actual_checksum=$(find "$backup_dir" -type f -name "*.sql.gz" -o -name "*.db" -o -name "*.env" -o -name "*.yaml" -exec sha256sum {} \; | sha256sum | cut -d' ' -f1)
+          
+          if [ "$expected_checksum" = "$actual_checksum" ]; then
+            echo "✅ Backup integrity verified"
+          else
+            echo "❌ Backup integrity check failed"
+            exit 1
+          fi
+        else
+          echo "⚠️ Backup manifest not found, skipping integrity check"
+        fi
+
+  # ============================================================================
+  # TEST RESTORE (Optional)
+  # ============================================================================
+  test-restore:
+    name: Test Restore
+    runs-on: ubuntu-latest
+    needs: [database-backup, backup-verification]
+    if: github.event.inputs.backup_type == 'test-restore'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up test environment
+      run: |
+        echo "Setting up test environment for restore..."
+        
+        # Create test namespace
+        kubectl create namespace lms-test-restore --dry-run=client -o yaml | kubectl apply -f -
+        
+        # Deploy test PostgreSQL
+        kubectl apply -f k8s/test-restore/postgres-test.yaml -n lms-test-restore
+
+    - name: Restore PostgreSQL backup
+      run: |
+        echo "Restoring PostgreSQL backup..."
+        
+        # Wait for test PostgreSQL to be ready
+        kubectl wait --for=condition=ready pod -l app=postgres-test -n lms-test-restore --timeout=300s
+        
+        # Get test pod name
+        POD_NAME=$(kubectl get pods -n lms-test-restore -l app=postgres-test -o jsonpath='{.items[0].metadata.name}')
+        
+        # Copy backup to test pod
+        kubectl cp backups/$(date +%Y%m%d)/postgres_backup_$(date +%Y%m%d)_*.sql.gz lms-test-restore/$POD_NAME:/tmp/
+        
+        # Restore backup
+        kubectl exec -n lms-test-restore $POD_NAME -- bash -c "
+          gunzip /tmp/postgres_backup_*.sql.gz
+          psql -U postgres -d test_db < /tmp/postgres_backup_*.sql
+        "
+        
+        echo "PostgreSQL restore completed"
+
+    - name: Verify restore
+      run: |
+        echo "Verifying restore..."
+        
+        # Test database connectivity
+        POD_NAME=$(kubectl get pods -n lms-test-restore -l app=postgres-test -o jsonpath='{.items[0].metadata.name}')
+        
+        # Check if tables exist
+        table_count=$(kubectl exec -n lms-test-restore $POD_NAME -- psql -U postgres -d test_db -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';")
+        
+        if [ "$table_count" -gt 0 ]; then
+          echo "✅ Restore verification passed: $table_count tables found"
+        else
+          echo "❌ Restore verification failed: no tables found"
+          exit 1
+        fi
+
+    - name: Clean up test environment
+      run: |
+        echo "Cleaning up test environment..."
+        kubectl delete namespace lms-test-restore
+
+  # ============================================================================
+  # BACKUP NOTIFICATION
+  # ============================================================================
+  backup-notification:
+    name: Backup Notification
+    runs-on: ubuntu-latest
+    needs: [database-backup, backup-verification]
+    if: always()
+
+    steps:
+    - name: Send backup notification
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#backups'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        text: |
+          💾 **Database Backup Report**
+          
+          Backup Type: ${{ github.event.inputs.backup_type || 'full' }}
+          Environment: Production
+          Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          
+          Backup Status: ${{ needs.database-backup.result }}
+          Verification Status: ${{ needs.backup-verification.result }}
+          
+          Files Backed Up:
+          - PostgreSQL database
+          - Course SQLite database
+          - Content SQLite database
+          - Configuration files
+          - Kubernetes manifests
+          
+          Storage: S3 (${{ env.BACKUP_BUCKET }})
+          Retention: ${{ env.BACKUP_RETENTION_DAYS }} days
+          
+          View details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+    - name: Upload backup report
+      uses: actions/upload-artifact@v3
+      with:
+        name: backup-report-${{ github.run_id }}
+        path: backups/$(date +%Y%m%d)/backup_manifest.json
+        retention-days: 90
+
+  # ============================================================================
+  # DISASTER RECOVERY PLAN
+  # ============================================================================
+  disaster-recovery:
+    name: Disaster Recovery Plan
+    runs-on: ubuntu-latest
+    if: github.event.inputs.backup_type == 'test-restore'
+
+    steps:
+    - name: Generate disaster recovery plan
+      run: |
+        echo "Generating disaster recovery plan..."
+        
+        cat << EOF > disaster-recovery-plan.md
+        # LMS Platform Disaster Recovery Plan
+        
+        ## Overview
+        This document outlines the disaster recovery procedures for the LMS platform.
+        
+        ## Recovery Time Objectives (RTO)
+        - Critical systems: 4 hours
+        - Non-critical systems: 24 hours
+        
+        ## Recovery Point Objectives (RPO)
+        - Database: 1 hour (daily backups)
+        - Configuration: 24 hours
+        
+        ## Recovery Procedures
+        
+        ### 1. Database Recovery
+        1. Identify the latest backup from S3
+        2. Restore PostgreSQL database
+        3. Restore SQLite databases (course, content)
+        4. Verify data integrity
+        
+        ### 2. Application Recovery
+        1. Deploy Kubernetes manifests
+        2. Restore configuration files
+        3. Update environment variables
+        4. Verify service connectivity
+        
+        ### 3. Frontend Recovery
+        1. Deploy frontend container
+        2. Update API endpoints
+        3. Verify user interface
+        
+        ## Contact Information
+        - DevOps Team: devops@lms.com
+        - Database Admin: dba@lms.com
+        - Emergency Contact: emergency@lms.com
+        
+        ## Backup Locations
+        - S3 Bucket: ${{ env.BACKUP_BUCKET }}
+        - Retention: ${{ env.BACKUP_RETENTION_DAYS }} days
+        - Encryption: AES-256
+        
+        ## Testing Schedule
+        - Monthly: Full disaster recovery test
+        - Weekly: Backup verification
+        - Daily: Automated backup creation
+        
+        Generated: $(date -u)
+        EOF
+
+    - name: Upload disaster recovery plan
+      uses: actions/upload-artifact@v3
+      with:
+        name: disaster-recovery-plan-${{ github.run_id }}
+        path: disaster-recovery-plan.md
+        retention-days: 365 

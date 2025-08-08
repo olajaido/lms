@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: content-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: content-service
+  template:
+    metadata:
+      labels:
+        app: content-service
+    spec:
+      containers:
+      - name: content-service
+        image: content-service:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: UPLOAD_DIR
+          value: "/data/uploads"
+        volumeMounts:
+        - name: uploads
+          mountPath: /data/uploads
+      volumes:
+      - name: uploads
+        emptyDir: {}

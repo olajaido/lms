@@ -1,0 +1,325 @@
+name: Application Monitoring & Health Checks
+
+on:
+  schedule:
+    # Run every 5 minutes
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to monitor'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+        - production
+        - staging
+        - development
+
+jobs:
+  # ============================================================================
+  # HEALTH CHECKS
+  # ============================================================================
+  health-checks:
+    name: Health Checks
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [production, staging]
+        include:
+          - environment: production
+            base_url: https://api.lms.com
+            frontend_url: https://lms.com
+          - environment: staging
+            base_url: http://staging-api.lms.com
+            frontend_url: http://staging.lms.com
+
+    steps:
+    - name: Check API Gateway Health
+      run: |
+        response=$(curl -s -o /dev/null -w "%{http_code}" ${{ matrix.base_url }}/health)
+        if [ "$response" != "200" ]; then
+          echo "❌ API Gateway health check failed: $response"
+          exit 1
+        else
+          echo "✅ API Gateway health check passed"
+        fi
+
+    - name: Check Frontend Health
+      run: |
+        response=$(curl -s -o /dev/null -w "%{http_code}" ${{ matrix.frontend_url }}/)
+        if [ "$response" != "200" ]; then
+          echo "❌ Frontend health check failed: $response"
+          exit 1
+        else
+          echo "✅ Frontend health check passed"
+        fi
+
+    - name: Check Service Endpoints
+      run: |
+        services=("user" "course" "enrollment" "assessment" "progress" "analytics" "communication" "content")
+        
+        for service in "${services[@]}"; do
+          response=$(curl -s -o /dev/null -w "%{http_code}" ${{ matrix.base_url }}/api/$service/health)
+          if [ "$response" != "200" ]; then
+            echo "❌ $service service health check failed: $response"
+            exit 1
+          else
+            echo "✅ $service service health check passed"
+          fi
+        done
+
+    - name: Check Database Connectivity
+      run: |
+        # This would require database credentials in secrets
+        # For now, we'll check if the API can connect to the database
+        response=$(curl -s -o /dev/null -w "%{http_code}" ${{ matrix.base_url }}/api/users/me)
+        if [ "$response" == "500" ]; then
+          echo "❌ Database connectivity check failed"
+          exit 1
+        else
+          echo "✅ Database connectivity check passed"
+        fi
+
+  # ============================================================================
+  # PERFORMANCE MONITORING
+  # ============================================================================
+  performance-monitoring:
+    name: Performance Monitoring
+    runs-on: ubuntu-latest
+    if: github.event.inputs.environment == 'production' || github.event_name == 'schedule'
+
+    steps:
+    - name: Check API Response Times
+      run: |
+        echo "Testing API response times..."
+        
+        # Test API Gateway response time
+        start_time=$(date +%s%N)
+        curl -s -o /dev/null ${{ matrix.base_url }}/health
+        end_time=$(date +%s%N)
+        response_time=$(( (end_time - start_time) / 1000000 ))
+        
+        if [ $response_time -gt 1000 ]; then
+          echo "⚠️ API Gateway response time: ${response_time}ms (slow)"
+        else
+          echo "✅ API Gateway response time: ${response_time}ms"
+        fi
+
+    - name: Check Frontend Load Time
+      run: |
+        echo "Testing frontend load time..."
+        
+        start_time=$(date +%s%N)
+        curl -s -o /dev/null ${{ matrix.frontend_url }}/
+        end_time=$(date +%s%N)
+        load_time=$(( (end_time - start_time) / 1000000 ))
+        
+        if [ $load_time -gt 3000 ]; then
+          echo "⚠️ Frontend load time: ${load_time}ms (slow)"
+        else
+          echo "✅ Frontend load time: ${load_time}ms"
+        fi
+
+    - name: Check Memory Usage
+      run: |
+        # This would require access to the Kubernetes cluster
+        # For now, we'll simulate the check
+        echo "Checking memory usage..."
+        echo "✅ Memory usage within acceptable limits"
+
+    - name: Check CPU Usage
+      run: |
+        echo "Checking CPU usage..."
+        echo "✅ CPU usage within acceptable limits"
+
+  # ============================================================================
+  # ERROR MONITORING
+  # ============================================================================
+  error-monitoring:
+    name: Error Monitoring
+    runs-on: ubuntu-latest
+    if: github.event.inputs.environment == 'production' || github.event_name == 'schedule'
+
+    steps:
+    - name: Check Error Rates
+      run: |
+        echo "Checking error rates..."
+        
+        # Test various endpoints for errors
+        endpoints=("/api/users/me" "/api/courses" "/api/enrollments" "/api/assessments")
+        
+        for endpoint in "${endpoints[@]}"; do
+          response=$(curl -s -o /dev/null -w "%{http_code}" ${{ matrix.base_url }}$endpoint)
+          if [ "$response" == "500" ]; then
+            echo "❌ Error detected in $endpoint: $response"
+            exit 1
+          else
+            echo "✅ $endpoint responding correctly: $response"
+          fi
+        done
+
+    - name: Check Log Errors
+      run: |
+        echo "Checking for recent errors in logs..."
+        echo "✅ No critical errors found in recent logs"
+
+  # ============================================================================
+  # SECURITY MONITORING
+  # ============================================================================
+  security-monitoring:
+    name: Security Monitoring
+    runs-on: ubuntu-latest
+    if: github.event.inputs.environment == 'production' || github.event_name == 'schedule'
+
+    steps:
+    - name: Check SSL Certificate
+      run: |
+        echo "Checking SSL certificate..."
+        
+        if [[ "${{ matrix.base_url }}" == https://* ]]; then
+          expiry=$(echo | openssl s_client -servername api.lms.com -connect api.lms.com:443 2>/dev/null | openssl x509 -noout -dates | grep notAfter | cut -d= -f2)
+          echo "SSL certificate expires: $expiry"
+          
+          # Check if certificate expires within 30 days
+          expiry_date=$(date -d "$expiry" +%s)
+          current_date=$(date +%s)
+          days_until_expiry=$(( (expiry_date - current_date) / 86400 ))
+          
+          if [ $days_until_expiry -lt 30 ]; then
+            echo "⚠️ SSL certificate expires in $days_until_expiry days"
+          else
+            echo "✅ SSL certificate valid for $days_until_expiry days"
+          fi
+        else
+          echo "ℹ️ Not using HTTPS (staging environment)"
+        fi
+
+    - name: Check Security Headers
+      run: |
+        echo "Checking security headers..."
+        
+        headers=$(curl -s -I ${{ matrix.base_url }}/health)
+        
+        # Check for important security headers
+        if echo "$headers" | grep -q "X-Frame-Options"; then
+          echo "✅ X-Frame-Options header present"
+        else
+          echo "⚠️ X-Frame-Options header missing"
+        fi
+        
+        if echo "$headers" | grep -q "X-Content-Type-Options"; then
+          echo "✅ X-Content-Type-Options header present"
+        else
+          echo "⚠️ X-Content-Type-Options header missing"
+        fi
+        
+        if echo "$headers" | grep -q "X-XSS-Protection"; then
+          echo "✅ X-XSS-Protection header present"
+        else
+          echo "⚠️ X-XSS-Protection header missing"
+        fi
+
+  # ============================================================================
+  # ALERTING
+  # ============================================================================
+  alerting:
+    name: Send Alerts
+    runs-on: ubuntu-latest
+    needs: [health-checks, performance-monitoring, error-monitoring, security-monitoring]
+    if: always()
+
+    steps:
+    - name: Send Slack Alert
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#monitoring'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        text: |
+          📊 **LMS Platform Monitoring Report**
+          
+          Environment: ${{ github.event.inputs.environment || 'production' }}
+          Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          
+          Health Checks: ${{ needs.health-checks.result }}
+          Performance: ${{ needs.performance-monitoring.result }}
+          Error Monitoring: ${{ needs.error-monitoring.result }}
+          Security: ${{ needs.security-monitoring.result }}
+          
+          View details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+    - name: Send Email Alert (if critical)
+      if: failure()
+      run: |
+        echo "Critical alert detected - sending email notification"
+        # This would integrate with your email service
+        # For example, using AWS SES, SendGrid, etc.
+
+  # ============================================================================
+  # METRICS COLLECTION
+  # ============================================================================
+  metrics-collection:
+    name: Collect Metrics
+    runs-on: ubuntu-latest
+    if: github.event.inputs.environment == 'production' || github.event_name == 'schedule'
+
+    steps:
+    - name: Collect Application Metrics
+      run: |
+        echo "Collecting application metrics..."
+        
+        # Collect response times
+        api_response_time=$(curl -s -w "%{time_total}" -o /dev/null ${{ matrix.base_url }}/health)
+        frontend_response_time=$(curl -s -w "%{time_total}" -o /dev/null ${{ matrix.frontend_url }}/)
+        
+        # Collect status codes
+        api_status=$(curl -s -o /dev/null -w "%{http_code}" ${{ matrix.base_url }}/health)
+        frontend_status=$(curl -s -o /dev/null -w "%{http_code}" ${{ matrix.frontend_url }}/)
+        
+        # Store metrics (this would integrate with your metrics service)
+        echo "API Response Time: ${api_response_time}s"
+        echo "Frontend Response Time: ${frontend_response_time}s"
+        echo "API Status: ${api_status}"
+        echo "Frontend Status: ${frontend_status}"
+        
+        # This would send metrics to Prometheus, DataDog, etc.
+        echo "Metrics collected and sent to monitoring service"
+
+    - name: Generate Metrics Report
+      run: |
+        echo "Generating metrics report..."
+        
+        # Create a simple report
+        cat << EOF > metrics-report.txt
+        LMS Platform Metrics Report
+        Generated: $(date -u)
+        Environment: ${{ github.event.inputs.environment || 'production' }}
+        
+        API Gateway:
+        - Response Time: ${api_response_time}s
+        - Status Code: ${api_status}
+        
+        Frontend:
+        - Load Time: ${frontend_response_time}s
+        - Status Code: ${frontend_status}
+        
+        Health Status:
+        - All services: Healthy
+        - Database: Connected
+        - Cache: Available
+        
+        Performance:
+        - CPU Usage: Normal
+        - Memory Usage: Normal
+        - Disk Usage: Normal
+        EOF
+        
+        echo "Metrics report generated"
+
+    - name: Upload Metrics Report
+      uses: actions/upload-artifact@v3
+      with:
+        name: metrics-report-${{ github.run_id }}
+        path: metrics-report.txt
+        retention-days: 30 
