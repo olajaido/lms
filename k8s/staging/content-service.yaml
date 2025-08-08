@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: content-service
+  namespace: lms-staging
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: content-service
+  template:
+    metadata:
+      labels:
+        app: content-service
+    spec:
+      containers:
+      - name: content-service
+        image: 436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-content-service:latest
+        ports:
+        - containerPort: 8008
+        env:
+        - name: ENVIRONMENT
+          value: "staging"
+        - name: DATABASE_URL
+          value: "postgresql://lms_staging_user:staging_password@postgres-service:5432/lms_staging_db"
+        - name: POSTGRES_DB
+          value: "lms_staging_db"
+        - name: POSTGRES_USER
+          value: "lms_staging_user"
+        - name: POSTGRES_PASSWORD
+          value: "staging_password"
+        - name: POSTGRES_HOST
+          value: "postgres-service"
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: JWT_SECRET_KEY
+          value: "staging-super-secret-jwt-key-change-in-production"
+        - name: JWT_ALGORITHM
+          value: "HS256"
+        - name: JWT_ACCESS_TOKEN_EXPIRE_MINUTES
+          value: "30"
+        - name: REDIS_URL
+          value: "redis://redis-service:6379"
+        - name: REDIS_HOST
+          value: "redis-service"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: UPLOAD_DIR
+          value: "/app/uploads"
+        - name: MAX_FILE_SIZE
+          value: "100MB"
+        - name: ALLOWED_FILE_TYPES
+          value: "pdf,doc,docx,ppt,pptx,jpg,jpeg,png,gif,mp4,avi,mov"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: content-service
+  namespace: lms-staging
+spec:
+  selector:
+    app: content-service
+  ports:
+  - port: 8008
+    targetPort: 8008
+  type: ClusterIP

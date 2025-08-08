@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: assessment-service
+  namespace: lms-production
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: assessment-service
+  template:
+    metadata:
+      labels:
+        app: assessment-service
+    spec:
+      containers:
+      - name: assessment-service
+        image: 436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-assessment-service:latest
+        ports:
+        - containerPort: 8004
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: assessment-service
+  namespace: lms-production
+spec:
+  selector:
+    app: assessment-service
+  ports:
+  - port: 8004
+    targetPort: 8004
+  type: ClusterIP

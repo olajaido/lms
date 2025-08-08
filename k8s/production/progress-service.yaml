@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: progress-service
+  namespace: lms-production
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: progress-service
+  template:
+    metadata:
+      labels:
+        app: progress-service
+    spec:
+      containers:
+      - name: progress-service
+        image: 436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-progress-service:latest
+        ports:
+        - containerPort: 8005
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: progress-service
+  namespace: lms-production
+spec:
+  selector:
+    app: progress-service
+  ports:
+  - port: 8005
+    targetPort: 8005
+  type: ClusterIP

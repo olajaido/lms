@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: enrollment-service
+  namespace: lms-staging
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: enrollment-service
+  template:
+    metadata:
+      labels:
+        app: enrollment-service
+    spec:
+      containers:
+      - name: enrollment-service
+        image: 436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-enrollment-service:latest
+        ports:
+        - containerPort: 8003
+        env:
+        - name: ENVIRONMENT
+          value: "staging"
+        - name: DATABASE_URL
+          value: "postgresql://lms_staging_user:staging_password@postgres-service:5432/lms_staging_db"
+        - name: POSTGRES_DB
+          value: "lms_staging_db"
+        - name: POSTGRES_USER
+          value: "lms_staging_user"
+        - name: POSTGRES_PASSWORD
+          value: "staging_password"
+        - name: POSTGRES_HOST
+          value: "postgres-service"
+        - name: POSTGRES_PORT
+          value: "5432"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: enrollment-service
+  namespace: lms-staging
+spec:
+  selector:
+    app: enrollment-service
+  ports:
+  - port: 8003
+    targetPort: 8003
+  type: ClusterIP

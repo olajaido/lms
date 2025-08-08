@@ -401,5 +401,5 @@ jobs:
       with:
         status: ${{ job.status }}
         channel: '#deployments'
-        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
-      if: always() 
+        webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+      if: always() && github.event_name == 'push' 
