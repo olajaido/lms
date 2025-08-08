@@ -7,8 +7,8 @@ on:
     branches: [ main, develop ]
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  AWS_REGION: eu-west-2
+  ECR_REGISTRY: 436549840164.dkr.ecr.eu-west-2.amazonaws.com
 
 jobs:
   # ============================================================================
@@ -147,38 +147,41 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: arn:aws:iam::436549840164:role/github_action_role
+        aws-region: ${{ env.AWS_REGION }}
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Log in to Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+    - name: Log in to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
 
     - name: Extract metadata
       id: meta
       uses: docker/metadata-action@v5
       with:
         images: |
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/api-gateway
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/user-service
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/course-service
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/enrollment-service
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/assessment-service
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/progress-service
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/analytics-service
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/communication-service
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/content-service
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend
+          ${{ env.ECR_REGISTRY }}/lms-api-gateway
+          ${{ env.ECR_REGISTRY }}/lms-user-service
+          ${{ env.ECR_REGISTRY }}/lms-course-service
+          ${{ env.ECR_REGISTRY }}/lms-enrollment-service
+          ${{ env.ECR_REGISTRY }}/lms-assessment-service
+          ${{ env.ECR_REGISTRY }}/lms-progress-service
+          ${{ env.ECR_REGISTRY }}/lms-analytics-service
+          ${{ env.ECR_REGISTRY }}/lms-communication-service
+          ${{ env.ECR_REGISTRY }}/lms-content-service
+          ${{ env.ECR_REGISTRY }}/lms-frontend
 
     - name: Build and push API Gateway
       uses: docker/build-push-action@v5
       with:
         context: ./backend/api_gateway
         push: true
-        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/api-gateway:${{ github.sha }}
+        tags: ${{ env.ECR_REGISTRY }}/lms-api-gateway:${{ github.sha }}
         labels: ${{ steps.meta.outputs.labels }}
 
     - name: Build and push User Service
@@ -186,7 +189,7 @@ jobs:
       with:
         context: ./backend/user_service
         push: true
-        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/user-service:${{ github.sha }}
+        tags: ${{ env.ECR_REGISTRY }}/lms-user-service:${{ github.sha }}
         labels: ${{ steps.meta.outputs.labels }}
 
     - name: Build and push Course Service
@@ -194,7 +197,7 @@ jobs:
       with:
         context: ./backend/course_service
         push: true
-        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/course-service:${{ github.sha }}
+        tags: ${{ env.ECR_REGISTRY }}/lms-course-service:${{ github.sha }}
         labels: ${{ steps.meta.outputs.labels }}
 
     - name: Build and push Enrollment Service
@@ -202,7 +205,7 @@ jobs:
       with:
         context: ./backend/enrollment_service
         push: true
-        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/enrollment-service:${{ github.sha }}
+        tags: ${{ env.ECR_REGISTRY }}/lms-enrollment-service:${{ github.sha }}
         labels: ${{ steps.meta.outputs.labels }}
 
     - name: Build and push Assessment Service
@@ -210,7 +213,7 @@ jobs:
       with:
         context: ./backend/assessment_service
         push: true
-        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/assessment-service:${{ github.sha }}
+        tags: ${{ env.ECR_REGISTRY }}/lms-assessment-service:${{ github.sha }}
         labels: ${{ steps.meta.outputs.labels }}
 
     - name: Build and push Progress Service
@@ -218,7 +221,7 @@ jobs:
       with:
         context: ./backend/progress_service
         push: true
-        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/progress-service:${{ github.sha }}
+        tags: ${{ env.ECR_REGISTRY }}/lms-progress-service:${{ github.sha }}
         labels: ${{ steps.meta.outputs.labels }}
 
     - name: Build and push Analytics Service
@@ -226,7 +229,7 @@ jobs:
       with:
         context: ./backend/analytics_service
         push: true
-        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/analytics-service:${{ github.sha }}
+        tags: ${{ env.ECR_REGISTRY }}/lms-analytics-service:${{ github.sha }}
         labels: ${{ steps.meta.outputs.labels }}
 
     - name: Build and push Communication Service
@@ -234,7 +237,7 @@ jobs:
       with:
         context: ./backend/communication_service
         push: true
-        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/communication-service:${{ github.sha }}
+        tags: ${{ env.ECR_REGISTRY }}/lms-communication-service:${{ github.sha }}
         labels: ${{ steps.meta.outputs.labels }}
 
     - name: Build and push Content Service
@@ -242,7 +245,7 @@ jobs:
       with:
         context: ./backend/content_service
         push: true
-        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/content-service:${{ github.sha }}
+        tags: ${{ env.ECR_REGISTRY }}/lms-content-service:${{ github.sha }}
         labels: ${{ steps.meta.outputs.labels }}
 
     - name: Build and push Frontend
@@ -250,7 +253,7 @@ jobs:
       with:
         context: ./frontend
         push: true
-        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend:${{ github.sha }}
+        tags: ${{ env.ECR_REGISTRY }}/lms-frontend:${{ github.sha }}
         labels: ${{ steps.meta.outputs.labels }}
 
   # ============================================================================
@@ -280,16 +283,16 @@ jobs:
     - name: Deploy to staging
       run: |
         # Update image tags in Kubernetes manifests
-        sed -i 's|ghcr.io/.*/api-gateway:.*|ghcr.io/${{ github.repository }}/api-gateway:${{ github.sha }}|g' k8s/staging/
-        sed -i 's|ghcr.io/.*/user-service:.*|ghcr.io/${{ github.repository }}/user-service:${{ github.sha }}|g' k8s/staging/
-        sed -i 's|ghcr.io/.*/course-service:.*|ghcr.io/${{ github.repository }}/course-service:${{ github.sha }}|g' k8s/staging/
-        sed -i 's|ghcr.io/.*/enrollment-service:.*|ghcr.io/${{ github.repository }}/enrollment-service:${{ github.sha }}|g' k8s/staging/
-        sed -i 's|ghcr.io/.*/assessment-service:.*|ghcr.io/${{ github.repository }}/assessment-service:${{ github.sha }}|g' k8s/staging/
-        sed -i 's|ghcr.io/.*/progress-service:.*|ghcr.io/${{ github.repository }}/progress-service:${{ github.sha }}|g' k8s/staging/
-        sed -i 's|ghcr.io/.*/analytics-service:.*|ghcr.io/${{ github.repository }}/analytics-service:${{ github.sha }}|g' k8s/staging/
-        sed -i 's|ghcr.io/.*/communication-service:.*|ghcr.io/${{ github.repository }}/communication-service:${{ github.sha }}|g' k8s/staging/
-        sed -i 's|ghcr.io/.*/content-service:.*|ghcr.io/${{ github.repository }}/content-service:${{ github.sha }}|g' k8s/staging/
-        sed -i 's|ghcr.io/.*/frontend:.*|ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}|g' k8s/staging/
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-api-gateway:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-api-gateway:${{ github.sha }}|g' k8s/staging/
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-user-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-user-service:${{ github.sha }}|g' k8s/staging/
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-course-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-course-service:${{ github.sha }}|g' k8s/staging/
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-enrollment-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-enrollment-service:${{ github.sha }}|g' k8s/staging/
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-assessment-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-assessment-service:${{ github.sha }}|g' k8s/staging/
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-progress-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-progress-service:${{ github.sha }}|g' k8s/staging/
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-analytics-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-analytics-service:${{ github.sha }}|g' k8s/staging/
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-communication-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-communication-service:${{ github.sha }}|g' k8s/staging/
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-content-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-content-service:${{ github.sha }}|g' k8s/staging/
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-frontend:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-frontend:${{ github.sha }}|g' k8s/staging/
         
         # Apply Kubernetes manifests
         kubectl apply -f k8s/staging/
@@ -344,16 +347,16 @@ jobs:
     - name: Deploy to production
       run: |
         # Update image tags in Kubernetes manifests
-        sed -i 's|ghcr.io/.*/api-gateway:.*|ghcr.io/${{ github.repository }}/api-gateway:${{ github.sha }}|g' k8s/production/
-        sed -i 's|ghcr.io/.*/user-service:.*|ghcr.io/${{ github.repository }}/user-service:${{ github.sha }}|g' k8s/production/
-        sed -i 's|ghcr.io/.*/course-service:.*|ghcr.io/${{ github.repository }}/course-service:${{ github.sha }}|g' k8s/production/
-        sed -i 's|ghcr.io/.*/enrollment-service:.*|ghcr.io/${{ github.repository }}/enrollment-service:${{ github.sha }}|g' k8s/production/
-        sed -i 's|ghcr.io/.*/assessment-service:.*|ghcr.io/${{ github.repository }}/assessment-service:${{ github.sha }}|g' k8s/production/
-        sed -i 's|ghcr.io/.*/progress-service:.*|ghcr.io/${{ github.repository }}/progress-service:${{ github.sha }}|g' k8s/production/
-        sed -i 's|ghcr.io/.*/analytics-service:.*|ghcr.io/${{ github.repository }}/analytics-service:${{ github.sha }}|g' k8s/production/
-        sed -i 's|ghcr.io/.*/communication-service:.*|ghcr.io/${{ github.repository }}/communication-service:${{ github.sha }}|g' k8s/production/
-        sed -i 's|ghcr.io/.*/content-service:.*|ghcr.io/${{ github.repository }}/content-service:${{ github.sha }}|g' k8s/production/
-        sed -i 's|ghcr.io/.*/frontend:.*|ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}|g' k8s/production/
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-api-gateway:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-api-gateway:${{ github.sha }}|g' k8s/production/
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-user-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-user-service:${{ github.sha }}|g' k8s/production/
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-course-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-course-service:${{ github.sha }}|g' k8s/production/
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-enrollment-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-enrollment-service:${{ github.sha }}|g' k8s/production/
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-assessment-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-assessment-service:${{ github.sha }}|g' k8s/production/
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-progress-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-progress-service:${{ github.sha }}|g' k8s/production/
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-analytics-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-analytics-service:${{ github.sha }}|g' k8s/production/
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-communication-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-communication-service:${{ github.sha }}|g' k8s/production/
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-content-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-content-service:${{ github.sha }}|g' k8s/production/
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-frontend:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-frontend:${{ github.sha }}|g' k8s/production/
         
         # Apply Kubernetes manifests
         kubectl apply -f k8s/production/
