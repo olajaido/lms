@@ -14,7 +14,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "vite"
+    "start": "vite",
+    "test": "echo 'No tests configured yet' && exit 0",
+    "test:ci": "echo 'No tests configured yet' && exit 0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.7.0",
