@@ -88,6 +88,16 @@ jobs:
     name: Performance Monitoring
     runs-on: ubuntu-latest
     if: github.event.inputs.environment == 'production' || github.event_name == 'schedule'
+    strategy:
+      matrix:
+        environment: [production, staging]
+        include:
+          - environment: production
+            base_url: https://api.lms.com
+            frontend_url: https://lms.com
+          - environment: staging
+            base_url: http://staging-api.lms.com
+            frontend_url: http://staging.lms.com
 
     steps:
     - name: Check API Response Times
@@ -140,6 +150,16 @@ jobs:
     name: Error Monitoring
     runs-on: ubuntu-latest
     if: github.event.inputs.environment == 'production' || github.event_name == 'schedule'
+    strategy:
+      matrix:
+        environment: [production, staging]
+        include:
+          - environment: production
+            base_url: https://api.lms.com
+            frontend_url: https://lms.com
+          - environment: staging
+            base_url: http://staging-api.lms.com
+            frontend_url: http://staging.lms.com
 
     steps:
     - name: Check Error Rates
@@ -171,6 +191,16 @@ jobs:
     name: Security Monitoring
     runs-on: ubuntu-latest
     if: github.event.inputs.environment == 'production' || github.event_name == 'schedule'
+    strategy:
+      matrix:
+        environment: [production, staging]
+        include:
+          - environment: production
+            base_url: https://api.lms.com
+            frontend_url: https://lms.com
+          - environment: staging
+            base_url: http://staging-api.lms.com
+            frontend_url: http://staging.lms.com
 
     steps:
     - name: Check SSL Certificate
@@ -235,7 +265,7 @@ jobs:
       with:
         status: ${{ job.status }}
         channel: '#monitoring'
-        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
         text: |
           📊 **LMS Platform Monitoring Report**
           
@@ -263,6 +293,16 @@ jobs:
     name: Collect Metrics
     runs-on: ubuntu-latest
     if: github.event.inputs.environment == 'production' || github.event_name == 'schedule'
+    strategy:
+      matrix:
+        environment: [production, staging]
+        include:
+          - environment: production
+            base_url: https://api.lms.com
+            frontend_url: https://lms.com
+          - environment: staging
+            base_url: http://staging-api.lms.com
+            frontend_url: http://staging.lms.com
 
     steps:
     - name: Collect Application Metrics
@@ -290,19 +330,25 @@ jobs:
       run: |
         echo "Generating metrics report..."
         
+        # Get the metrics from the previous step
+        API_RESPONSE_TIME=$(curl -s -w "%{time_total}" -o /dev/null ${{ matrix.base_url }}/health)
+        FRONTEND_RESPONSE_TIME=$(curl -s -w "%{time_total}" -o /dev/null ${{ matrix.frontend_url }}/)
+        API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" ${{ matrix.base_url }}/health)
+        FRONTEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" ${{ matrix.frontend_url }}/)
+        
         # Create a simple report
         cat << EOF > metrics-report.txt
         LMS Platform Metrics Report
         Generated: $(date -u)
-        Environment: ${{ github.event.inputs.environment || 'production' }}
+        Environment: ${{ matrix.environment }}
         
         API Gateway:
-        - Response Time: ${api_response_time}s
-        - Status Code: ${api_status}
+        - Response Time: ${API_RESPONSE_TIME}s
+        - Status Code: ${API_STATUS}
         
         Frontend:
-        - Load Time: ${frontend_response_time}s
-        - Status Code: ${frontend_status}
+        - Load Time: ${FRONTEND_RESPONSE_TIME}s
+        - Status Code: ${FRONTEND_STATUS}
         
         Health Status:
         - All services: Healthy
