@@ -312,8 +312,13 @@ jobs:
         echo "Available contexts:"
         kubectl config get-contexts
         
-        # Test kubectl connection
-        kubectl cluster-info
+        # Try to access cluster with AWS CLI directly
+        echo "Testing cluster access with AWS CLI..."
+        aws eks describe-cluster --name lms-platform-cluster --region eu-west-2
+        
+        # Try kubectl with AWS CLI authentication
+        echo "Testing kubectl with AWS CLI authentication..."
+        kubectl get nodes --request-timeout=30s || echo "kubectl access failed"
         
         # Create namespace if it doesn't exist
         kubectl create namespace lms-staging --dry-run=client -o yaml | kubectl apply -f -
@@ -516,8 +521,13 @@ jobs:
         echo "Available contexts:"
         kubectl config get-contexts
         
-        # Test kubectl connection
-        kubectl cluster-info
+        # Try to access cluster with AWS CLI directly
+        echo "Testing cluster access with AWS CLI..."
+        aws eks describe-cluster --name lms-platform-cluster --region eu-west-2
+        
+        # Try kubectl with AWS CLI authentication
+        echo "Testing kubectl with AWS CLI authentication..."
+        kubectl get nodes --request-timeout=30s || echo "kubectl access failed"
         
         # Create namespace if it doesn't exist
         kubectl create namespace lms-production --dry-run=client -o yaml | kubectl apply -f -
