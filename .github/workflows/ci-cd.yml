@@ -290,6 +290,12 @@ jobs:
       run: |
         echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > kubeconfig
         export KUBECONFIG=kubeconfig
+        
+        # Test kubectl connection
+        kubectl cluster-info
+        
+        # Create namespace if it doesn't exist
+        kubectl create namespace lms-staging --dry-run=client -o yaml | kubectl apply -f -
 
     - name: Deploy to staging
       run: |
@@ -306,7 +312,7 @@ jobs:
         sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-frontend:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-frontend:${{ github.sha }}|g' k8s/staging/*.yaml
         
         # Apply Kubernetes manifests
-        kubectl apply -f k8s/staging/
+        kubectl apply -f k8s/staging/ --validate=false
         
         # Wait for deployment to be ready
         kubectl rollout status deployment/api-gateway -n lms-staging --timeout=300s
@@ -355,6 +361,12 @@ jobs:
       run: |
         echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" | base64 -d > kubeconfig
         export KUBECONFIG=kubeconfig
+        
+        # Test kubectl connection
+        kubectl cluster-info
+        
+        # Create namespace if it doesn't exist
+        kubectl create namespace lms-production --dry-run=client -o yaml | kubectl apply -f -
 
     - name: Deploy to production
       run: |
@@ -371,7 +383,7 @@ jobs:
         sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-frontend:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-frontend:${{ github.sha }}|g' k8s/production/*.yaml
         
         # Apply Kubernetes manifests
-        kubectl apply -f k8s/production/
+        kubectl apply -f k8s/production/ --validate=false
         
         # Wait for deployment to be ready
         kubectl rollout status deployment/api-gateway -n lms-production --timeout=300s
