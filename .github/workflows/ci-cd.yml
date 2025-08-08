@@ -294,16 +294,16 @@ jobs:
     - name: Deploy to staging
       run: |
         # Update image tags in Kubernetes manifests
-        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-api-gateway:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-api-gateway:${{ github.sha }}|g' k8s/staging/
-        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-user-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-user-service:${{ github.sha }}|g' k8s/staging/
-        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-course-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-course-service:${{ github.sha }}|g' k8s/staging/
-        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-enrollment-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-enrollment-service:${{ github.sha }}|g' k8s/staging/
-        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-assessment-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-assessment-service:${{ github.sha }}|g' k8s/staging/
-        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-progress-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-progress-service:${{ github.sha }}|g' k8s/staging/
-        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-analytics-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-analytics-service:${{ github.sha }}|g' k8s/staging/
-        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-communication-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-communication-service:${{ github.sha }}|g' k8s/staging/
-        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-content-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-content-service:${{ github.sha }}|g' k8s/staging/
-        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-frontend:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-frontend:${{ github.sha }}|g' k8s/staging/
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-api-gateway:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-api-gateway:${{ github.sha }}|g' k8s/staging/*.yaml
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-user-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-user-service:${{ github.sha }}|g' k8s/staging/*.yaml
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-course-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-course-service:${{ github.sha }}|g' k8s/staging/*.yaml
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-enrollment-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-enrollment-service:${{ github.sha }}|g' k8s/staging/*.yaml
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-assessment-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-assessment-service:${{ github.sha }}|g' k8s/staging/*.yaml
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-progress-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-progress-service:${{ github.sha }}|g' k8s/staging/*.yaml
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-analytics-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-analytics-service:${{ github.sha }}|g' k8s/staging/*.yaml
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-communication-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-communication-service:${{ github.sha }}|g' k8s/staging/*.yaml
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-content-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-content-service:${{ github.sha }}|g' k8s/staging/*.yaml
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-frontend:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-frontend:${{ github.sha }}|g' k8s/staging/*.yaml
         
         # Apply Kubernetes manifests
         kubectl apply -f k8s/staging/
@@ -359,16 +359,16 @@ jobs:
     - name: Deploy to production
       run: |
         # Update image tags in Kubernetes manifests
-        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-api-gateway:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-api-gateway:${{ github.sha }}|g' k8s/production/
-        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-user-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-user-service:${{ github.sha }}|g' k8s/production/
-        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-course-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-course-service:${{ github.sha }}|g' k8s/production/
-        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-enrollment-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-enrollment-service:${{ github.sha }}|g' k8s/production/
-        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-assessment-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-assessment-service:${{ github.sha }}|g' k8s/production/
-        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-progress-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-progress-service:${{ github.sha }}|g' k8s/production/
-        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-analytics-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-analytics-service:${{ github.sha }}|g' k8s/production/
-        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-communication-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-communication-service:${{ github.sha }}|g' k8s/production/
-        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-content-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-content-service:${{ github.sha }}|g' k8s/production/
-        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-frontend:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-frontend:${{ github.sha }}|g' k8s/production/
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-api-gateway:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-api-gateway:${{ github.sha }}|g' k8s/production/*.yaml
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-user-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-user-service:${{ github.sha }}|g' k8s/production/*.yaml
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-course-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-course-service:${{ github.sha }}|g' k8s/production/*.yaml
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-enrollment-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-enrollment-service:${{ github.sha }}|g' k8s/production/*.yaml
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-assessment-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-assessment-service:${{ github.sha }}|g' k8s/production/*.yaml
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-progress-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-progress-service:${{ github.sha }}|g' k8s/production/*.yaml
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-analytics-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-analytics-service:${{ github.sha }}|g' k8s/production/*.yaml
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-communication-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-communication-service:${{ github.sha }}|g' k8s/production/*.yaml
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-content-service:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-content-service:${{ github.sha }}|g' k8s/production/*.yaml
+        sed -i 's|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-frontend:.*|436549840164.dkr.ecr.eu-west-2.amazonaws.com/lms-frontend:${{ github.sha }}|g' k8s/production/*.yaml
         
         # Apply Kubernetes manifests
         kubectl apply -f k8s/production/
