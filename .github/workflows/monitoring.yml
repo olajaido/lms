@@ -261,23 +261,65 @@ jobs:
 
     steps:
     - name: Send Slack Alert
-      uses: 8398a7/action-slack@v3
+      uses: slackapi/slack-github-action@v1.23.0
       with:
-        status: ${{ job.status }}
-        channel: '#monitoring'
-        webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
-        text: |
-          📊 **LMS Platform Monitoring Report**
-          
-          Environment: ${{ github.event.inputs.environment || 'production' }}
-          Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-          
-          Health Checks: ${{ needs.health-checks.result }}
-          Performance: ${{ needs.performance-monitoring.result }}
-          Error Monitoring: ${{ needs.error-monitoring.result }}
-          Security: ${{ needs.security-monitoring.result }}
-          
-          View details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        payload: |
+          {
+            "blocks": [
+              {
+                "type": "header",
+                "text": {
+                  "type": "plain_text",
+                  "text": "📊 LMS Platform Monitoring Report",
+                  "emoji": true
+                }
+              },
+              {
+                "type": "section",
+                "fields": [
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Environment:*\n${{ github.event.inputs.environment || 'production' }}"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Timestamp:*\n$(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Health Checks:*\n${{ needs.health-checks.result }}"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Performance:*\n${{ needs.performance-monitoring.result }}"
+                  }
+                ]
+              },
+              {
+                "type": "section",
+                "fields": [
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Error Monitoring:*\n${{ needs.error-monitoring.result }}"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Security:*\n${{ needs.security-monitoring.result }}"
+                  }
+                ]
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*View Details:*\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                }
+              }
+            ]
+          }
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
 
     - name: Send Email Alert (if critical)
       if: failure()
