@@ -380,7 +380,7 @@ jobs:
         CLUSTER_NAME=$(grep -o 'B911ABEA9759F76F52ED3CB6B87C4DDE.gr7.eu-west-2.eks.amazonaws.com' temp-kubeconfig | head -1)
         
         # Generate kubeconfig using AWS CLI
-        aws eks update-kubeconfig --name lms-cluster --region eu-west-2
+        aws eks update-kubeconfig --name lms-platform-cluster --region eu-west-2
         
         # Test kubectl connection
         kubectl cluster-info
