@@ -298,8 +298,19 @@ jobs:
         echo "Checking AWS credentials..."
         aws sts get-caller-identity
         
+        # Get EKS cluster token
+        echo "Getting EKS cluster token..."
+        aws eks get-token --cluster-name lms-platform-cluster --region eu-west-2
+        
         # Generate kubeconfig using AWS CLI with proper authentication
         aws eks update-kubeconfig --name lms-platform-cluster --region eu-west-2
+        
+        # Debug kubeconfig
+        echo "Current kubeconfig context:"
+        kubectl config current-context
+        
+        echo "Available contexts:"
+        kubectl config get-contexts
         
         # Test kubectl connection
         kubectl cluster-info
@@ -379,8 +390,19 @@ jobs:
         echo "Checking AWS credentials..."
         aws sts get-caller-identity
         
+        # Get EKS cluster token
+        echo "Getting EKS cluster token..."
+        aws eks get-token --cluster-name lms-platform-cluster --region eu-west-2
+        
         # Generate kubeconfig using AWS CLI with proper authentication
         aws eks update-kubeconfig --name lms-platform-cluster --region eu-west-2
+        
+        # Debug kubeconfig
+        echo "Current kubeconfig context:"
+        kubectl config current-context
+        
+        echo "Available contexts:"
+        kubectl config get-contexts
         
         # Test kubectl connection
         kubectl cluster-info
