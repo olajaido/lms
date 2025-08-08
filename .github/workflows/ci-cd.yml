@@ -294,8 +294,12 @@ jobs:
 
     - name: Configure kubectl
       run: |
-        echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > kubeconfig
-        export KUBECONFIG=kubeconfig
+        # Get cluster name from the kubeconfig
+        echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > temp-kubeconfig
+        CLUSTER_NAME=$(grep -o 'B911ABEA9759F76F52ED3CB6B87C4DDE.gr7.eu-west-2.eks.amazonaws.com' temp-kubeconfig | head -1)
+        
+        # Generate kubeconfig using AWS CLI
+        aws eks update-kubeconfig --name lms-cluster --region eu-west-2
         
         # Test kubectl connection
         kubectl cluster-info
@@ -371,8 +375,12 @@ jobs:
 
     - name: Configure kubectl
       run: |
-        echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" | base64 -d > kubeconfig
-        export KUBECONFIG=kubeconfig
+        # Get cluster name from the kubeconfig
+        echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" | base64 -d > temp-kubeconfig
+        CLUSTER_NAME=$(grep -o 'B911ABEA9759F76F52ED3CB6B87C4DDE.gr7.eu-west-2.eks.amazonaws.com' temp-kubeconfig | head -1)
+        
+        # Generate kubeconfig using AWS CLI
+        aws eks update-kubeconfig --name lms-cluster --region eu-west-2
         
         # Test kubectl connection
         kubectl cluster-info
