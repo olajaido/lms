@@ -17,6 +17,11 @@ else:
     shared_path = os.path.join(os.path.dirname(__file__), '..', '..', 'shared')
     if os.path.exists(shared_path):
         sys.path.append(shared_path)
+    else:
+        # Try root level shared directory (for EKS deployment)
+        shared_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'shared')
+        if os.path.exists(shared_path):
+            sys.path.append(shared_path)
 
 # Try to import shared modules, but make them optional
 try:
