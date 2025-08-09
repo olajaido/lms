@@ -219,17 +219,24 @@ services:
   # Content Service
   content-service:
     build:
-      context: ./backend/content_service
-      dockerfile: Dockerfile
+      context: ./backend
+      dockerfile: content_service/Dockerfile
     container_name: lms-content-service
     environment:
-      - DATABASE_URL=sqlite:///./content.db
-      - UPLOAD_DIR=/app/uploads
+      - DATABASE_URL=postgresql://lms_user:lms_password@postgres:5432/lms_db
+      - JWT_SECRET_KEY=your-super-secret-jwt-key-change-in-production
+      - JWT_ALGORITHM=HS256
+      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - UPLOAD_DIR=./uploads
+      - MAX_FILE_SIZE=100MB
+      - ALLOWED_FILE_TYPES=pdf,doc,docx,ppt,pptx,xls,xlsx,mp4,avi,mov,jpg,jpeg,png,gif
     ports:
-      - "8008:8007"
+      - "8007:8007"
     volumes:
       - content_uploads:/app/uploads
-      - content_data:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - lms-network
     healthcheck:

@@ -22,8 +22,11 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy shared modules first (from the shared directory)
+COPY shared ./shared
+
 # Copy application code
-COPY . .
+COPY content_service .
 
 # Create uploads directory
 RUN mkdir -p uploads && chmod 755 uploads

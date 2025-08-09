@@ -14,9 +14,14 @@ from .service_integration import get_content_integration, content_integration
 # Import authentication dependencies
 import sys
 import os
-shared_path = os.path.join(os.path.dirname(__file__), '..', '..', 'shared')
+shared_path = os.path.join(os.path.dirname(__file__), '..', 'shared')
 if os.path.exists(shared_path):
     sys.path.append(shared_path)
+else:
+    # Try alternative path for when running in container
+    shared_path = os.path.join(os.path.dirname(__file__), '..', '..', 'shared')
+    if os.path.exists(shared_path):
+        sys.path.append(shared_path)
 
 try:
     from auth_middleware import require_user_auth, require_admin_auth, require_service_auth

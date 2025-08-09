@@ -9,9 +9,14 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 
 # Add shared directory to path
-shared_path = os.path.join(os.path.dirname(__file__), '..', '..', 'shared')
+shared_path = os.path.join(os.path.dirname(__file__), '..', 'shared')
 if os.path.exists(shared_path):
     sys.path.append(shared_path)
+else:
+    # Try alternative path for when running in container
+    shared_path = os.path.join(os.path.dirname(__file__), '..', '..', 'shared')
+    if os.path.exists(shared_path):
+        sys.path.append(shared_path)
 
 # Try to import shared modules, but make them optional
 try:
