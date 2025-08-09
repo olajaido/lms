@@ -8,36 +8,37 @@ import os
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 
-# Add shared directory to path and try to import shared modules
-shared_modules_loaded = False
+# Initialize variables
+SHARED_MODULES_AVAILABLE = False
+ServiceClient = None
+service_registry = None
+get_event_client = None
+get_event_handler = None
+EventType = None
+Event = None
+ServiceAuthDependency = None
 
-# Try multiple paths for shared modules
-shared_paths = [
-    os.path.join(os.path.dirname(__file__), '..', 'shared'),
-    os.path.join(os.path.dirname(__file__), '..', '..', 'shared'),
-    os.path.join(os.path.dirname(__file__), '..', '..', '..', 'shared'),
-    '/app/shared',  # For container environment
-    os.path.join(os.getcwd(), 'shared'),  # Current working directory
-    os.path.join(os.getcwd(), '..', 'shared'),  # Parent of current working directory
-]
-
-for shared_path in shared_paths:
-    if os.path.exists(shared_path) and os.path.exists(os.path.join(shared_path, 'http_client.py')):
-        if shared_path not in sys.path:
-            sys.path.insert(0, shared_path)
-        print(f"✅ Found shared modules at: {shared_path}")
-        shared_modules_loaded = True
-        break
-
-if not shared_modules_loaded:
-    print("❌ Shared modules not found in any of the expected paths:")
-    for path in shared_paths:
-        print(f"   - {path} (exists: {os.path.exists(path)})")
-        if os.path.exists(path):
-            print(f"     - http_client.py exists: {os.path.exists(os.path.join(path, 'http_client.py'))}")
-
-# Try to import shared modules
+# Try to find and import shared modules
 try:
+    # Try multiple paths for shared modules
+    shared_paths = [
+        os.path.join(os.path.dirname(__file__), '..', 'shared'),
+        os.path.join(os.path.dirname(__file__), '..', '..', 'shared'),
+        os.path.join(os.path.dirname(__file__), '..', '..', '..', 'shared'),
+        '/app/shared',  # For container environment
+        os.path.join(os.getcwd(), 'shared'),  # Current working directory
+        os.path.join(os.getcwd(), '..', 'shared'),  # Parent of current working directory
+    ]
+
+    shared_modules_loaded = False
+    for shared_path in shared_paths:
+        if os.path.exists(shared_path) and os.path.exists(os.path.join(shared_path, 'http_client.py')):
+            if shared_path not in sys.path:
+                sys.path.insert(0, shared_path)
+            print(f"✅ Found shared modules at: {shared_path}")
+            shared_modules_loaded = True
+            break
+
     if shared_modules_loaded:
         from http_client import ServiceClient, service_registry
         from event_handler import get_event_client, get_event_handler, EventType, Event
@@ -46,6 +47,7 @@ try:
         print("✅ Shared modules loaded successfully")
     else:
         raise ImportError("Shared modules not found")
+
 except ImportError as e:
     print(f"⚠️  Shared modules not available - running in standalone mode: {e}")
     SHARED_MODULES_AVAILABLE = False
@@ -92,14 +94,15 @@ except ImportError as e:
             self.require_user = require_user
 
 # Initialize service registry with all services
-service_registry.register_service("user", "http://localhost:8001")
-service_registry.register_service("course", "http://localhost:8002")
-service_registry.register_service("enrollment", "http://localhost:8003")
-service_registry.register_service("assessment", "http://localhost:8004")
-service_registry.register_service("progress", "http://localhost:8005")
-service_registry.register_service("communication", "http://localhost:8006")
-service_registry.register_service("content", "http://localhost:8007")
-service_registry.register_service("analytics", "http://localhost:8008")
+if service_registry:
+    service_registry.register_service("user", "http://localhost:8001")
+    service_registry.register_service("course", "http://localhost:8002")
+    service_registry.register_service("enrollment", "http://localhost:8003")
+    service_registry.register_service("assessment", "http://localhost:8004")
+    service_registry.register_service("progress", "http://localhost:8005")
+    service_registry.register_service("communication", "http://localhost:8006")
+    service_registry.register_service("content", "http://localhost:8007")
+    service_registry.register_service("analytics", "http://localhost:8008")
 
 
 class ContentServiceIntegration:
@@ -108,14 +111,14 @@ class ContentServiceIntegration:
     def __init__(self):
         if SHARED_MODULES_AVAILABLE:
             self.service_client = ServiceClient("content")
-            self.event_client = get_event_client("content")
-            self.event_handler = get_event_handler("content")
-            self.auth_dependency = ServiceAuthDependency(require_user=True)
+            self.event_client = get_event_client("content") if get_event_client else None
+            self.event_handler = get_event_handler("content") if get_event_handler else None
+            self.auth_dependency = ServiceAuthDependency(require_user=True) if ServiceAuthDependency else None
         else:
             self.service_client = ServiceClient("content")
             self.event_client = None
             self.event_handler = None
-            self.auth_dependency = ServiceAuthDependency(require_user=True)
+            self.auth_dependency = ServiceAuthDependency(require_user=True) if ServiceAuthDependency else None
     
     async def get_user_info(self, user_id: int) -> Optional[Dict[str, Any]]:
         """Get user information from user service."""
