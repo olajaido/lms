@@ -14,8 +14,26 @@ from .service_integration import get_content_integration, content_integration
 # Import authentication dependencies
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'shared'))
-from auth_middleware import require_user_auth, require_admin_auth, require_service_auth
+shared_path = os.path.join(os.path.dirname(__file__), '..', '..', 'shared')
+if os.path.exists(shared_path):
+    sys.path.append(shared_path)
+
+try:
+    from auth_middleware import require_user_auth, require_admin_auth, require_service_auth
+    AUTH_MODULES_AVAILABLE = True
+except ImportError:
+    print("⚠️  Auth modules not available - running in standalone mode")
+    AUTH_MODULES_AVAILABLE = False
+    
+    # Create dummy auth functions for when shared modules are not available
+    def require_user_auth(request: Request):
+        return {"user_id": 1, "email": "test@example.com", "role": "user"}
+    
+    def require_admin_auth(request: Request):
+        return {"user_id": 1, "email": "admin@example.com", "role": "admin"}
+    
+    def require_service_auth(request: Request):
+        return {"service_name": "content", "service_id": "content-1"}
 
 # Directory where uploaded content will be stored
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./uploads")

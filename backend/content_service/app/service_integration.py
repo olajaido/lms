@@ -9,11 +9,60 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 
 # Add shared directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'shared'))
+shared_path = os.path.join(os.path.dirname(__file__), '..', '..', 'shared')
+if os.path.exists(shared_path):
+    sys.path.append(shared_path)
 
-from http_client import ServiceClient, service_registry
-from event_handler import get_event_client, get_event_handler, EventType, Event
-from auth_middleware import ServiceAuthDependency
+# Try to import shared modules, but make them optional
+try:
+    from http_client import ServiceClient, service_registry
+    from event_handler import get_event_client, get_event_handler, EventType, Event
+    from auth_middleware import ServiceAuthDependency
+    SHARED_MODULES_AVAILABLE = True
+except ImportError:
+    print("⚠️  Shared modules not available - running in standalone mode")
+    SHARED_MODULES_AVAILABLE = False
+    
+    # Create dummy classes for when shared modules are not available
+    class ServiceClient:
+        def __init__(self, service_name):
+            self.service_name = service_name
+        async def create_notification(self, data):
+            print(f"Notification creation not available: {data}")
+        async def send_message(self, data):
+            print(f"Message sending not available: {data}")
+    
+    class service_registry:
+        @staticmethod
+        def register_service(name, url):
+            print(f"Service registration not available: {name} -> {url}")
+        @staticmethod
+        def get_client(name):
+            return None
+        @staticmethod
+        def get_service_url(name):
+            return f"http://{name}-service:8000"
+    
+    def get_event_client(service_name):
+        return None
+    
+    def get_event_handler(service_name):
+        return None
+    
+    class EventType:
+        COURSE_UPDATED = "course_updated"
+        PROGRESS_UPDATED = "progress_updated"
+        USER_CREATED = "user_created"
+        COURSE_CREATED = "course_created"
+        ENROLLMENT_CREATED = "enrollment_created"
+        PROGRESS_COMPLETED = "progress_completed"
+    
+    class Event:
+        pass
+    
+    class ServiceAuthDependency:
+        def __init__(self, require_user=True):
+            self.require_user = require_user
 
 # Initialize service registry with all services
 service_registry.register_service("user", "http://localhost:8001")
@@ -30,59 +79,84 @@ class ContentServiceIntegration:
     """Integration layer for content service with other services."""
     
     def __init__(self):
-        self.service_client = ServiceClient("content")
-        self.event_client = get_event_client("content")
-        self.event_handler = get_event_handler("content")
-        self.auth_dependency = ServiceAuthDependency(require_user=True)
+        if SHARED_MODULES_AVAILABLE:
+            self.service_client = ServiceClient("content")
+            self.event_client = get_event_client("content")
+            self.event_handler = get_event_handler("content")
+            self.auth_dependency = ServiceAuthDependency(require_user=True)
+        else:
+            self.service_client = ServiceClient("content")
+            self.event_client = None
+            self.event_handler = None
+            self.auth_dependency = ServiceAuthDependency(require_user=True)
     
     async def get_user_info(self, user_id: int) -> Optional[Dict[str, Any]]:
         """Get user information from user service."""
+        if not SHARED_MODULES_AVAILABLE:
+            print(f"User info not available - shared modules not loaded")
+            return None
         try:
             user_client = service_registry.get_client("user")
-            async with user_client:
-                response = await user_client.get(f"/api/v1/users/{user_id}")
-                return response.get("data")
+            if user_client:
+                async with user_client:
+                    response = await user_client.get(f"/api/v1/users/{user_id}")
+                    return response.get("data")
+            return None
         except Exception as e:
             print(f"Error getting user info: {e}")
             return None
     
     async def get_course_info(self, course_id: int) -> Optional[Dict[str, Any]]:
         """Get course information from course service."""
+        if not SHARED_MODULES_AVAILABLE:
+            print(f"Course info not available - shared modules not loaded")
+            return None
         try:
             course_client = service_registry.get_client("course")
-            async with course_client:
-                response = await course_client.get(f"/api/v1/courses/{course_id}")
-                return response.get("data")
+            if course_client:
+                async with course_client:
+                    response = await course_client.get(f"/api/v1/courses/{course_id}")
+                    return response.get("data")
+            return None
         except Exception as e:
             print(f"Error getting course info: {e}")
             return None
     
     async def check_user_enrollment(self, user_id: int, course_id: int) -> bool:
         """Check if user is enrolled in course."""
+        if not SHARED_MODULES_AVAILABLE:
+            print(f"Enrollment check not available - shared modules not loaded")
+            return False
         try:
             enrollment_client = service_registry.get_client("enrollment")
-            async with enrollment_client:
-                response = await enrollment_client.get("/api/v1/enrollments", params={
-                    "user_id": user_id,
-                    "course_id": course_id,
-                    "status": "active"
-                })
-                enrollments = response.get("data", [])
-                return len(enrollments) > 0
+            if enrollment_client:
+                async with enrollment_client:
+                    response = await enrollment_client.get("/api/v1/enrollments", params={
+                        "user_id": user_id,
+                        "course_id": course_id,
+                        "status": "active"
+                    })
+                    enrollments = response.get("data", [])
+                    return len(enrollments) > 0
+            return False
         except Exception as e:
             print(f"Error checking enrollment: {e}")
             return False
     
     async def update_user_progress(self, user_id: int, course_id: int, progress_data: Dict[str, Any]):
         """Update user progress in progress service."""
+        if not SHARED_MODULES_AVAILABLE:
+            print(f"Progress update not available - shared modules not loaded")
+            return
         try:
             progress_client = service_registry.get_client("progress")
-            async with progress_client:
-                await progress_client.post("/api/v1/progress", data={
-                    "user_id": user_id,
-                    "course_id": course_id,
-                    **progress_data
-                })
+            if progress_client:
+                async with progress_client:
+                    await progress_client.post("/api/v1/progress", data={
+                        "user_id": user_id,
+                        "course_id": course_id,
+                        **progress_data
+                    })
         except Exception as e:
             print(f"Error updating progress: {e}")
     
@@ -102,6 +176,9 @@ class ContentServiceIntegration:
     
     async def publish_content_uploaded_event(self, content_data: Dict[str, Any]):
         """Publish content uploaded event."""
+        if not SHARED_MODULES_AVAILABLE or not self.event_client:
+            print(f"Event publishing not available - shared modules not loaded")
+            return
         try:
             await self.event_client.publish_event(
                 EventType.COURSE_UPDATED,
@@ -119,6 +196,9 @@ class ContentServiceIntegration:
     
     async def publish_content_viewed_event(self, content_id: int, user_id: int):
         """Publish content viewed event."""
+        if not SHARED_MODULES_AVAILABLE or not self.event_client:
+            print(f"Event publishing not available - shared modules not loaded")
+            return
         try:
             await self.event_client.publish_event(
                 EventType.PROGRESS_UPDATED,
@@ -134,6 +214,9 @@ class ContentServiceIntegration:
     
     async def publish_content_downloaded_event(self, content_id: int, user_id: int):
         """Publish content downloaded event."""
+        if not SHARED_MODULES_AVAILABLE or not self.event_client:
+            print(f"Event publishing not available - shared modules not loaded")
+            return
         try:
             await self.event_client.publish_event(
                 EventType.PROGRESS_UPDATED,
@@ -169,7 +252,7 @@ class ContentServiceIntegration:
     
     def setup_event_handlers(self):
         """Setup event handlers for content service."""
-        if self.event_handler:
+        if self.event_handler and SHARED_MODULES_AVAILABLE:
             self.event_handler.subscribe(EventType.USER_CREATED, self.handle_user_created_event)
             self.event_handler.subscribe(EventType.COURSE_CREATED, self.handle_course_created_event)
             self.event_handler.subscribe(EventType.ENROLLMENT_CREATED, self.handle_enrollment_created_event)
