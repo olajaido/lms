@@ -283,15 +283,15 @@ jobs:
                   },
                   {
                     "type": "mrkdwn",
-                    "text": "*Timestamp:*\n$(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+                    "text": "*Health Checks:*\n${{ needs.health-checks.result || 'unknown' }}"
                   },
                   {
                     "type": "mrkdwn",
-                    "text": "*Health Checks:*\n${{ needs.health-checks.result }}"
+                    "text": "*Performance:*\n${{ needs.performance-monitoring.result || 'unknown' }}"
                   },
                   {
                     "type": "mrkdwn",
-                    "text": "*Performance:*\n${{ needs.performance-monitoring.result }}"
+                    "text": "*Error Monitoring:*\n${{ needs.error-monitoring.result || 'unknown' }}"
                   }
                 ]
               },
@@ -300,11 +300,11 @@ jobs:
                 "fields": [
                   {
                     "type": "mrkdwn",
-                    "text": "*Error Monitoring:*\n${{ needs.error-monitoring.result }}"
+                    "text": "*Security:*\n${{ needs.security-monitoring.result || 'unknown' }}"
                   },
                   {
                     "type": "mrkdwn",
-                    "text": "*Security:*\n${{ needs.security-monitoring.result }}"
+                    "text": "*Run ID:*\n${{ github.run_id }}"
                   }
                 ]
               },
@@ -312,7 +312,7 @@ jobs:
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "*View Details:*\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                  "text": "*View Details:*\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run Details>"
                 }
               }
             ]
