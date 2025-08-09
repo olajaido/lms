@@ -6,6 +6,10 @@ import os
 # Database URL - using SQLite for development
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./content.db")
 
+# Convert PostgreSQL URL to async URL if needed
+if DATABASE_URL.startswith("postgresql://") and not DATABASE_URL.startswith("postgresql+asyncpg://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+
 # Create async engine
 engine = create_async_engine(
     DATABASE_URL,
