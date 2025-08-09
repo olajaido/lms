@@ -8,29 +8,46 @@ import os
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 
-# Add shared directory to path
-shared_path = os.path.join(os.path.dirname(__file__), '..', 'shared')
-if os.path.exists(shared_path):
-    sys.path.append(shared_path)
-else:
-    # Try alternative path for when running in container
-    shared_path = os.path.join(os.path.dirname(__file__), '..', '..', 'shared')
-    if os.path.exists(shared_path):
-        sys.path.append(shared_path)
-    else:
-        # Try root level shared directory (for EKS deployment)
-        shared_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'shared')
-        if os.path.exists(shared_path):
-            sys.path.append(shared_path)
+# Add shared directory to path and try to import shared modules
+shared_modules_loaded = False
 
-# Try to import shared modules, but make them optional
+# Try multiple paths for shared modules
+shared_paths = [
+    os.path.join(os.path.dirname(__file__), '..', 'shared'),
+    os.path.join(os.path.dirname(__file__), '..', '..', 'shared'),
+    os.path.join(os.path.dirname(__file__), '..', '..', '..', 'shared'),
+    '/app/shared',  # For container environment
+    os.path.join(os.getcwd(), 'shared'),  # Current working directory
+    os.path.join(os.getcwd(), '..', 'shared'),  # Parent of current working directory
+]
+
+for shared_path in shared_paths:
+    if os.path.exists(shared_path) and os.path.exists(os.path.join(shared_path, 'http_client.py')):
+        if shared_path not in sys.path:
+            sys.path.insert(0, shared_path)
+        print(f"✅ Found shared modules at: {shared_path}")
+        shared_modules_loaded = True
+        break
+
+if not shared_modules_loaded:
+    print("❌ Shared modules not found in any of the expected paths:")
+    for path in shared_paths:
+        print(f"   - {path} (exists: {os.path.exists(path)})")
+        if os.path.exists(path):
+            print(f"     - http_client.py exists: {os.path.exists(os.path.join(path, 'http_client.py'))}")
+
+# Try to import shared modules
 try:
-    from http_client import ServiceClient, service_registry
-    from event_handler import get_event_client, get_event_handler, EventType, Event
-    from auth_middleware import ServiceAuthDependency
-    SHARED_MODULES_AVAILABLE = True
-except ImportError:
-    print("⚠️  Shared modules not available - running in standalone mode")
+    if shared_modules_loaded:
+        from http_client import ServiceClient, service_registry
+        from event_handler import get_event_client, get_event_handler, EventType, Event
+        from auth_middleware import ServiceAuthDependency
+        SHARED_MODULES_AVAILABLE = True
+        print("✅ Shared modules loaded successfully")
+    else:
+        raise ImportError("Shared modules not found")
+except ImportError as e:
+    print(f"⚠️  Shared modules not available - running in standalone mode: {e}")
     SHARED_MODULES_AVAILABLE = False
     
     # Create dummy classes for when shared modules are not available

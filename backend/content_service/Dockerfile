@@ -6,7 +6,7 @@ WORKDIR /app
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app:/app/shared
 
 # Install system dependencies including ffmpeg for video processing
 RUN apt-get update && apt-get install -y \
@@ -27,6 +27,10 @@ COPY shared ./shared
 
 # Copy content service code
 COPY content_service .
+
+# Debug: Check if shared modules were copied correctly
+RUN ls -la /app/shared || echo "Shared directory not found"
+RUN ls -la /app/shared/http_client.py || echo "http_client.py not found in shared directory"
 
 # Create uploads directory
 RUN mkdir -p uploads && chmod 755 uploads
